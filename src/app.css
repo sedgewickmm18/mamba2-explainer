@@ -1,0 +1,85 @@
+/* Global reset and typography */
+:root {
+    --bg: #0f1117;
+    --bg-panel: #1a1d27;
+    --bg-card: #20243a;
+    --border: #2e3347;
+    --text: #e8eaf0;
+    --text-dim: #8b90a8;
+    --accent-purple: #a78bfa;
+    --accent-teal: #2dd4bf;
+    --accent-orange: #fb923c;
+    --accent-blue: #60a5fa;
+    --accent-green: #4ade80;
+    --font-mono: 'Fira Code', 'Cascadia Code', monospace;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --panel-pad: 1.5rem;
+    --radius: 8px;
+    --transition: 200ms ease;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    overflow-x: hidden;
+}
+
+button {
+    font-family: inherit;
+    cursor: pointer;
+}
+
+select {
+    font-family: inherit;
+    cursor: pointer;
+}
+
+a {
+    color: var(--accent-blue);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+/* Panel cards */
+.panel-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--panel-pad);
+}
+
+/* Heatmap color scale utility classes */
+.heat-high  { fill: #ef4444; }
+.heat-mid   { fill: #f97316; }
+.heat-zero  { fill: #374151; }
+.heat-neg   { fill: #3b82f6; }
+.heat-lowneg { fill: #1e3a5f; }

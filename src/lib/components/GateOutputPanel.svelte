@@ -143,6 +143,12 @@ function render() {
         .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
         .text('-> GroupRMSNorm -> W_out -> + residual');
 
+    // Honest derivation note: z/y_ssm slices are not exported directly
+    svg.append('text')
+        .attr('x', W / 2).attr('y', H - 4)
+        .attr('text-anchor', 'middle').attr('fill', '#5b6070').attr('font-size', 7.5)
+        .text('derived from real hidden_in / hidden_out of this step (proxies for z and y_ssm)');
+
     // Residual arrow
     const residY = outTop + 90;
     svg.append('line')

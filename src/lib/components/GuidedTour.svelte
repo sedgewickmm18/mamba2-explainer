@@ -1,7 +1,7 @@
 <script lang="ts">
 /**
  * GuidedTour.svelte
- * 15-step guided tour overlay with prev/next navigation.
+ * 16-step guided tour overlay with prev/next navigation.
  * Opens automatically on first visit (localStorage flag).
  * Each step highlights a panel, scrolls to it, shows a tooltip card.
  */
@@ -105,6 +105,12 @@ const TOUR_STEPS: TourStep[] = [
         panel: 'panel-ssm',
         title: 'Why this matters',
         body: 'At 50k tokens a Transformer KV cache is ~gigabytes. The SSM state is a few KB regardless of length. Decode speed stays flat. This is the core engineering advantage of Mamba2.',
+    },
+    {
+        step: 16,
+        panel: 'panel-distribution',
+        title: 'The output: next-token distribution',
+        body: 'After the last layer: final RMSNorm -> lm_head -> softmax. Panel 7 shows the top-50 next-token candidates for the current step. The ringed bar is the token that actually follows in the prompt — watch rank and entropy change as you step through tokens.',
     },
 ];
 

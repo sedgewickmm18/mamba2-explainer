@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "d3": "^7.9.0",
-    "npyjs": "^0.4.0"
+    "npyjs": "^0.4.0",
+    "mermaid": "^10.0.0"
   },
   "type": "module"
 }

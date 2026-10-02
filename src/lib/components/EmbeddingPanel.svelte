@@ -2,8 +2,10 @@
 /**
  * EmbeddingPanel.svelte
  * Shows the input token sequence as colored rectangles.
- * Each bar height represents the embedding vector magnitude.
- * Hover shows miniature heatmap of the 768-dim vector.
+ * Bar height = the REAL ||embedding|| of each token, taken from the
+ * 'embeddings' member of the per-prompt output npz ({T, d_model}, the
+ * layer-0 inputs captured during the token-by-token forward).
+ * Hover shows the exact magnitude.
  */
 import { onMount, afterUpdate } from 'svelte';
 import * as d3 from 'd3';
@@ -17,16 +19,36 @@ const PAD = { top: 32, right: 12, bottom: 28, left: 12 };
 
 $: tokens  = $appState.tokens;
 $: stepIdx = $appState.stepIndex;
-$: hiddenIn = $appState.tensors.get('hidden_in') ?? null;
+$: step    = $appState.stepIndex;
+$: prompt  = $appState.promptIndex;
+$: outT    = $appState.outputTensors;
 
 let tooltip: { visible: boolean; x: number; y: number; token: string; mag: number } = {
     visible: false, x: 0, y: 0, token: '', mag: 0,
 };
 
-function magnitude(arr: Float32Array): number {
+function magnitude(arr: Float32Array, row: number, d: number): number {
     let s = 0;
-    for (let i = 0; i < arr.length; i++) s += arr[i] * arr[i];
+    const base = row * d;
+    for (let i = 0; i < d; i++) {
+        const v = arr[base + i] ?? 0;
+        s += v * v;
+    }
     return Math.sqrt(s);
+}
+
+// Real per-token magnitudes from the exported embeddings {T, d_model}
+$: magnitudes = computeMagnitudes(outT, tokens.length);
+
+function computeMagnitudes(out: Map<string, Float32Array> | null, n: number): number[] {
+    const emb = out?.get('embeddings');
+    if (!emb || emb.length < n) {
+        return new Array(n).fill(NaN); // no data yet -- rendered as empty stubs
+    }
+    const d = emb.length / n;
+    const result = new Array(n);
+    for (let i = 0; i < n; i++) result[i] = magnitude(emb, i, d);
+    return result;
 }
 
 function render() {
@@ -41,12 +63,10 @@ function render() {
     const barW = Math.max(4, Math.min(32, plotW / n - 2));
     const xScale = d3.scaleLinear().domain([0, n]).range([PAD.left, PAD.left + plotW]);
 
-    // Magnitude is a placeholder until we load per-token embeddings.
-    // Use stepIdx to highlight active token, and a synthetic magnitude.
-    const magnitudes = tokens.map((_, i) => (i <= stepIdx ? 0.6 + 0.4 * Math.sin(i * 0.9) : 0.1));
-    const yScale = d3.scaleLinear().domain([0, 1]).range([H - PAD.bottom, PAD.top]);
-
-    const colorScale = d3.scaleSequential(d3.interpolatePlasma).domain([0, 1]);
+    const valid = magnitudes.filter((m) => !isNaN(m));
+    const yMax = valid.length ? Math.max(...valid) : 1;
+    const yScale = d3.scaleLinear().domain([0, yMax]).range([H - PAD.bottom, PAD.top]);
+    const colorScale = d3.scaleSequential(d3.interpolatePlasma).domain([0, yMax]);
 
     const g = svg.append('g');
 
@@ -59,21 +79,22 @@ function render() {
     // Bars
     tokens.forEach((tok, i) => {
         const mag = magnitudes[i];
+        const has = !isNaN(mag);
         const x = xScale(i) + (xScale(1) - xScale(0) - barW) / 2;
-        const yTop = yScale(mag);
-        const barH = H - PAD.bottom - yTop;
+        const yTop = has ? yScale(mag) : H - PAD.bottom - 4;
+        const barH = has ? Math.max(2, H - PAD.bottom - yTop) : 4;
 
         const rect = g.append('rect')
             .attr('x', x)
             .attr('y', yTop)
             .attr('width', barW)
-            .attr('height', Math.max(2, barH))
-            .attr('fill', i === stepIdx ? '#2dd4bf' : colorScale(mag))
+            .attr('height', barH)
+            .attr('fill', i === stepIdx ? '#2dd4bf' : (has ? colorScale(mag) : '#2e3347'))
             .attr('rx', 2)
             .attr('opacity', i <= stepIdx ? 1 : 0.3)
             .style('cursor', 'pointer');
 
-        rect.on('mouseenter', function (event) {
+        rect.on('mouseenter', (event: MouseEvent) => {
             tooltip = {
                 visible: true,
                 x: event.offsetX + 12,
@@ -105,7 +126,7 @@ function render() {
         .attr('text-anchor', 'middle')
         .attr('fill', '#8b90a8')
         .attr('font-size', 9)
-        .text('|embedding|');
+        .text('|embedding| (real)');
 }
 
 onMount(render);
@@ -121,10 +142,7 @@ afterUpdate(render);
             style="left:{tooltip.x}px;top:{tooltip.y}px"
         >
             <div class="tt-token">{tooltip.token}</div>
-            <div class="tt-mag">||emb|| = {tooltip.mag.toFixed(3)}</div>
-            {#if hiddenIn}
-                <div class="tt-hint">d_model = {hiddenIn.length}</div>
-            {/if}
+            <div class="tt-mag">{isNaN(tooltip.mag) ? 'no data' : `||emb|| = ${tooltip.mag.toFixed(3)}`}</div>
         </div>
     {/if}
 </div>
@@ -147,5 +165,4 @@ afterUpdate(render);
 }
 .tt-token { font-family: var(--font-mono); color: var(--accent-teal); margin-bottom: 2px; }
 .tt-mag   { color: var(--text-dim); }
-.tt-hint  { color: var(--text-dim); font-size: 0.72rem; margin-top: 2px; }
 </style>

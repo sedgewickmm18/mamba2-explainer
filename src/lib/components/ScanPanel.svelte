@@ -5,6 +5,9 @@
  *
  * DECODE (n_tok=1, sequential scan):
  *   Animate the recurrence: S = exp(A*dt)*S + dt*(B outer x)
+ *   The dt bar chart shows the REAL dt slice of the current step's proj_out
+ *   (one value per head, before softplus + dt_bias) and the real decay
+ *   exp(A*dt) per head using A from model_meta.json.
  *
  * PREFILL (n_tok>1, SSD path):
  *   Show causal decay mask L as lower-triangular heatmap.
@@ -16,7 +19,7 @@
  */
 import { onMount, afterUpdate } from 'svelte';
 import * as d3 from 'd3';
-import { appState } from '$lib/data/tensorLoader';
+import { appState, type ModelMeta } from '$lib/data/tensorLoader';
 
 const W = 300;
 const H = 280;
@@ -24,10 +27,23 @@ const CHUNK = 16;  // display chunk size (actual = 256, but we show 16 for demo)
 
 $: stepIdx = $appState.stepIndex;
 $: tokens  = $appState.tokens;
-$: isMultiToken = false;  // set by toggle
 
 let mode: 'decode' | 'prefill' = 'decode';
 let svgEl: SVGSVGElement;
+
+function dtSlice(proj: Float32Array | null, m: ModelMeta | null): Float32Array | null {
+    if (!proj || !m) return null;
+    const dInner =
+        m.intermediate_size ??
+        (m.head_dim && m.num_heads ? m.head_dim * m.num_heads : null);
+    const dState = m.state_size ?? null;
+    const nGroups = m.n_groups ?? null;
+    const nH = m.num_heads ?? null;
+    if (!dInner || !dState || !nGroups || !nH) return null;
+    const dtStart = dInner + (dInner + 2 * nGroups * dState);
+    if (dtStart + nH > proj.length) return null;
+    return proj.subarray(dtStart, dtStart + nH);
+}
 
 function buildDecayMask(n: number): Float32Array {
     // Lower-triangular decay mask L
@@ -76,47 +92,61 @@ function renderDecode(svg: d3.Selection<SVGSVGElement, unknown, null, undefined>
         .attr('text-anchor', 'middle').attr('fill', '#e8eaf0').attr('font-family', 'monospace').attr('font-size', 9)
         .text(eq);
 
-    // Show a bar chart of synthetic dt values (one per head)
-    const nH = 8;
-    const dtVals = Array.from({ length: nH }, (_, h) =>
-        0.05 + 0.9 * ((Math.sin(h * 0.7 + stepIdx * 0.3) + 1) / 2)
-    );
+    // Real dt values from the proj_out dt slice (one per head)
+    const meta = $appState.meta;
+    const dt = dtSlice($appState.tensors.get('proj_out') ?? null, meta);
+    const nH = dt ? dt.length : 0;
+
+    if (!dt || nH === 0) {
+        svg.append('text')
+            .attr('x', cx).attr('y', 130)
+            .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 10)
+            .text('awaiting proj_out data ...');
+        return;
+    }
+
     const barW = (W - 24) / nH;
     const barMaxH = 80;
-    const cScale = d3.scaleSequential(d3.interpolateOranges).domain([0, 1]);
+    const dtMax = Math.max(...Array.from(dt), 1e-6);
+    const cScale = d3.scaleSequential(d3.interpolateOranges).domain([0, dtMax]);
 
     svg.append('text')
         .attr('x', 12).attr('y', 90)
         .attr('fill', '#8b90a8').attr('font-size', 9)
-        .text('dt (softplus) per head:');
+        .text(`dt raw slice of proj_out, ${nH} heads (softplus + dt_bias applied in the scan):`);
 
     for (let h = 0; h < nH; h++) {
-        const bh = dtVals[h] * barMaxH;
+        const bh = (Math.max(dt[h], 0) / dtMax) * barMaxH;
         const x = 12 + h * barW;
         const y = 100 + barMaxH - bh;
         svg.append('rect')
             .attr('x', x + 1).attr('y', y).attr('width', barW - 2).attr('height', bh)
-            .attr('fill', cScale(dtVals[h])).attr('rx', 2);
-        svg.append('text')
-            .attr('x', x + barW / 2).attr('y', 100 + barMaxH + 11)
-            .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 7)
-            .text(`h${h}`);
+            .attr('fill', cScale(dt[h])).attr('rx', 2)
+            .append('title')
+            .text(`head ${h}: dt = ${dt[h].toFixed(4)}`);
+        if (nH <= 12) {
+            svg.append('text')
+                .attr('x', x + barW / 2).attr('y', 100 + barMaxH + 11)
+                .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 7)
+                .text(`h${h}`);
+        }
     }
 
-    // Decay visualization
-    const decays = Array.from({ length: nH }, (_, h) =>
-        Math.exp(-Math.abs(dtVals[h]) * 0.5)
-    );
+    // Real decay exp(A*dt) using A from model_meta
+    const A = meta?.A?.[$appState.layerIndex];
     svg.append('text')
         .attr('x', 12).attr('y', 215)
         .attr('fill', '#8b90a8').attr('font-size', 9)
-        .text('exp(A*dt) decay per head:');
+        .text(A ? 'exp(A*dt) per head (real A from A_log):' : 'exp(A*dt) per head (awaiting A in model_meta):');
 
     for (let h = 0; h < nH; h++) {
+        const decay = A ? Math.exp(A[h] * dt[h]) : 0.5;
         const x = 12 + h * barW;
         svg.append('rect')
             .attr('x', x + 1).attr('y', 220).attr('width', barW - 2).attr('height', 22)
-            .attr('fill', d3.interpolateBlues(1 - decays[h])).attr('rx', 2);
+            .attr('fill', d3.interpolateBlues(1 - Math.min(1, Math.max(0, decay)))).attr('rx', 2)
+            .append('title')
+            .text(`head ${h}: exp(A*dt) = ${decay.toFixed(4)}`);
     }
 
     svg.append('text')
@@ -127,55 +157,40 @@ function renderDecode(svg: d3.Selection<SVGSVGElement, unknown, null, undefined>
 
 function renderPrefill(svg: d3.Selection<SVGSVGElement, unknown, null, undefined>) {
     const cx = W / 2;
-    const n = CHUNK;
 
     svg.append('text')
         .attr('x', cx).attr('y', 20)
         .attr('text-anchor', 'middle').attr('fill', '#a78bfa').attr('font-size', 11).attr('font-weight', '700')
-        .text('PREFILL MODE  (n_tok > 128)');
+        .text('PREFILL MODE  (SSD, n_tok > 1)');
 
     svg.append('text')
-        .attr('x', cx).attr('y', 34)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 8)
-        .text('SSD matmul path -- NVIDIA Turing+ only  (HIP/AMD falls back to scan)');
-
-    // SSD formula
-    svg.append('rect')
-        .attr('x', 12).attr('y', 42).attr('width', W - 24).attr('height', 28)
-        .attr('fill', '#1a1d27').attr('stroke', '#2e3347').attr('rx', 4);
-    svg.append('text')
-        .attr('x', cx).attr('y', 60)
-        .attr('text-anchor', 'middle').attr('fill', '#e8eaf0').attr('font-family', 'monospace').attr('font-size', 8)
-        .text('Y = (L * (C @ B^T)) @ (X * dt)  +  decay * C @ S_init');
-
-    // L matrix (causal decay mask, lower triangular)
-    const L = buildDecayMask(n);
-    const cellSz = Math.floor(Math.min(180 / n, 12));
-    const hmW = n * cellSz;
-    const hmH = n * cellSz;
-    const hmX = (W - hmW) / 2;
-    const hmY = 80;
-
-    svg.append('text')
-        .attr('x', cx).attr('y', hmY - 6)
+        .attr('x', cx).attr('y', 36)
         .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
-        .text(`L -- causal decay mask (${n} x ${n}, chunk_size=${CHUNK})`);
+        .text('Chunked into matmuls -- chunk_size = 256');
 
-    const cScale = d3.scaleSequential(d3.interpolateYlOrRd).domain([0, 1]);
+    // Causal decay mask L (lower-triangular heatmap)
+    const n = CHUNK;
+    const mask = buildDecayMask(n);
+    const x0 = cx - 110;
+    const y0 = 52;
+    const size = 190;
+    const cell = size / n;
+    const cScale = d3.scaleSequential(d3.interpolateViridis).domain([0, 1]);
+
     for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-            const val = L[i * n + j];
+            const v = mask[i * n + j];
             svg.append('rect')
-                .attr('x', hmX + j * cellSz).attr('y', hmY + i * cellSz)
-                .attr('width', cellSz - 0.3).attr('height', cellSz - 0.3)
-                .attr('fill', j <= i ? cScale(val) : '#1a1d27');
+                .attr('x', x0 + j * cell).attr('y', y0 + i * cell)
+                .attr('width', cell).attr('height', cell)
+                .attr('fill', v > 0 ? cScale(v) : '#161923');
         }
     }
 
     svg.append('text')
-        .attr('x', cx).attr('y', hmY + hmH + 18)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 8)
-        .text('chunk_size=256 keeps L at O(chunk^2), not O(T^2)');
+        .attr('x', cx).attr('y', y0 + size + 16)
+        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
+        .text('causal decay mask L (16x16 cut of chunk_size 256)');
 }
 
 onMount(render);
@@ -196,7 +211,7 @@ afterUpdate(render);
 
     {#if mode === 'prefill'}
         <div class="platform-note">
-            SSD (n_tok &gt; 128): NVIDIA Turing+ only via cuBLAS.<br/>
+            SSD (n_tok > 128): NVIDIA Turing+ only via cuBLAS.<br/>
             AMD HIP and MUSA always use the sequential scan path.
         </div>
     {/if}

@@ -20,9 +20,25 @@ export interface ManifestEntry {
     shapes: Record<string, number[]>;
 }
 
+export interface OutputStep {
+    step: number;
+    token: string;
+    top_tokens: string[];
+    actual_next: string;
+    actual_rank: number;
+}
+
+export interface ManifestOutputs {
+    [promptId: string]: {
+        output_file: string;
+        steps: OutputStep[];
+    };
+}
+
 export interface Manifest {
     prompts: string[];
     entries: ManifestEntry[];
+    outputs?: ManifestOutputs;
     _note?: string;
 }
 
@@ -38,6 +54,12 @@ export interface ModelMeta {
     conv_kernel_size?: number;
     expand?: number;
     head_dim?: number;
+    /** per-layer, per-head decay rates A = -exp(A_log) */
+    A?: number[][];
+    /** [n_head, head_dim, d_state] of the exported subsampled ssm_state */
+    ssm_state_sub?: number[];
+    /** [n_head, head_dim, d_state] of the full in-model recurrent state */
+    ssm_state_full?: number[];
 }
 
 export type TensorMap = Map<string, Float32Array>;
@@ -50,6 +72,10 @@ export interface AppState {
     stepIndex: number;
     tokens: string[];
     tensors: TensorMap;
+    /** per-prompt next-token distribution tensors (probs/ids/entropy/...) */
+    outputTensors: TensorMap | null;
+    /** id of the prompt whose outputTensors are loaded, '' when none */
+    outputPromptId: string;
     loading: boolean;
     error: string | null;
 }
@@ -66,6 +92,8 @@ const INITIAL: AppState = {
     stepIndex: 0,
     tokens: [],
     tensors: new Map(),
+    outputTensors: null,
+    outputPromptId: '',
     loading: false,
     error: null,
 };
@@ -126,7 +154,11 @@ function parseNpy(buf: ArrayBuffer): Float32Array {
     const n = shape.reduce((a, b) => a * b, 1);
     // Data starts after magic(6) + version(2) + headerLen field(2) + headerLen bytes
     const dataOffset = 10 + headerLen;
-    // Check dtype - we only handle float32 here
+    // Check dtype - float32 is the workhorse; int32 appears in actual_rank
+    if (headerStr.includes("'i4'") || headerStr.includes("<i4")) {
+        const ints = new Int32Array(buf, dataOffset, n);
+        return new Float32Array(ints);
+    }
     if (headerStr.includes("'f4'") || headerStr.includes("<f4") || headerStr.includes("|f4")) {
         return new Float32Array(buf, dataOffset, n);
     }
@@ -255,6 +287,9 @@ export async function initLoader(basePath = '') {
             loading: false,
         }));
 
+        // Pre-load the next-token distribution for prompt 0 (panel 7 + panel 1)
+        loadOutputTensors(0);
+
         // Pre-load tensors for first step
         await loadStep(0, 0, 0);
     } catch (err) {
@@ -311,7 +346,60 @@ export async function selectPrompt(idx: number) {
     if (!state.manifest) return;
     const tokens = extractTokens(state.manifest, idx, state.layerIndex);
     appState.update((s) => ({ ...s, promptIndex: idx, stepIndex: 0, tokens }));
+    loadOutputTensors(idx);
     await loadStep(idx, state.layerIndex, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Output distribution (per prompt, layer-independent)
+// ---------------------------------------------------------------------------
+
+const outputCache = new Map<string, Promise<TensorMap>>();
+
+function loadOutputTensors(promptIdx: number) {
+    const state = get(appState);
+    if (!state.manifest?.outputs) return;
+    const pid = promptId(promptIdx);
+    const info = state.manifest.outputs[pid];
+    if (!info) return;
+
+    let p = outputCache.get(pid);
+    if (!p) {
+        p = parseNpz(dataPath(info.output_file));
+        outputCache.set(pid, p);
+    }
+    p.then((tensors) => {
+        // the user may have switched prompts while fetching
+        const cur = get(appState);
+        if (cur.promptIndex !== promptIdx) return;
+        appState.update((s) => ({ ...s, outputTensors: tensors, outputPromptId: pid }));
+    }).catch((err) => {
+        outputCache.delete(pid);
+        console.warn(`output npz for ${pid} unavailable:`, err);
+    });
+}
+
+/**
+ * Fetch the tensors of an arbitrary (layer, step) npz without touching the
+ * global store. Used by SSMStatePanel to read S_before from step t-1.
+ */
+export async function loadStepTensors(
+    promptIdx: number,
+    layerIdx: number,
+    stepIdx: number
+): Promise<TensorMap | null> {
+    const state = get(appState);
+    if (!state.manifest) return null;
+    const pid = promptId(promptIdx);
+    const entry = state.manifest.entries.find(
+        (e) => e.prompt_id === pid && e.layer === layerIdx && e.step === stepIdx
+    );
+    if (!entry) return null;
+    try {
+        return await parseNpz(dataPath(entry.file));
+    } catch {
+        return null;
+    }
 }
 
 export async function selectLayer(idx: number) {

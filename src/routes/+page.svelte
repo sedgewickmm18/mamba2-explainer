@@ -24,7 +24,10 @@ import ConvPanel from '$lib/components/ConvPanel.svelte';
 import SSMStatePanel from '$lib/components/SSMStatePanel.svelte';
 import ScanPanel from '$lib/components/ScanPanel.svelte';
 import GateOutputPanel from '$lib/components/GateOutputPanel.svelte';
+import OutputDistributionPanel from '$lib/components/OutputDistributionPanel.svelte';
 import GuidedTour from '$lib/components/GuidedTour.svelte';
+import ModelDiagramModal from '$lib/components/ModelDiagramModal.svelte';
+import { openModelDiagram } from '$lib/data/modelDiagram';
 
 onMount(() => {
     initLoader();
@@ -41,6 +44,11 @@ $: loading   = $appState.loading;
 $: error     = $appState.error;
 $: nLayers   = meta?.n_layers ?? 24;
 
+// Slider label follows the store; dragging updates the label only, and the
+// per-layer npz fetch happens on release (change) to avoid fetch storms.
+let sliderLayer = 0;
+$: if (layerIdx !== sliderLayer) sliderLayer = layerIdx;
+
 function onPromptChange(e: Event) {
     const idx = parseInt((e.target as HTMLSelectElement).value, 10);
     selectPrompt(idx);
@@ -52,12 +60,30 @@ function onLayerLeft() {
 function onLayerRight() {
     if (layerIdx < $maxLayer) selectLayer(layerIdx + 1);
 }
+function onLayerSlide(e: Event) {
+    sliderLayer = parseInt((e.target as HTMLInputElement).value, 10);
+}
+function onLayerCommit() {
+    if (sliderLayer !== layerIdx) selectLayer(sliderLayer);
+}
+
+function scrollToDistribution() {
+    const el = document.getElementById('panel-distribution');
+    if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
 </script>
 
 <div class="app-root">
     <!-- Top bar -->
     <header class="topbar">
         <span class="topbar-title">Mamba2 Explainer</span>
+
+        <!-- Model diagram link -->
+        <div class="topbar-group">
+            <button class="topbar-select" on:click={openModelDiagram} aria-label="Open model diagram">
+                📊 Model diagram
+            </button>
+        </div>
 
         <!-- Prompt selector -->
         <label class="topbar-group" for="prompt-select">
@@ -81,7 +107,19 @@ function onLayerRight() {
         <div class="topbar-group">
             <span class="topbar-label">Layer</span>
             <button class="nav-btn" on:click={onLayerLeft} disabled={layerIdx <= 0} aria-label="Previous layer">&#8249;</button>
-            <span class="nav-val">{layerIdx} / {nLayers - 1}</span>
+            <div class="layer-slider-wrapper">
+                <input
+                    type="range"
+                    min={0}
+                    max={$maxLayer}
+                    value={sliderLayer}
+                    on:input={onLayerSlide}
+                    on:change={onLayerCommit}
+                    class="layer-slider"
+                    aria-label="Layer selector"
+                />
+                <span class="layer-value">{sliderLayer} / {nLayers - 1}</span>
+            </div>
             <button class="nav-btn" on:click={onLayerRight} disabled={layerIdx >= $maxLayer} aria-label="Next layer">&#8250;</button>
         </div>
 
@@ -133,6 +171,42 @@ function onLayerRight() {
         </div>
     {/if}
 
+    <!-- Data-flow strip above stage: Embedding -> Layer l-1 -> Layer l -> Layer l+1 -> Final Norm -> lm_head -> Distribution -->
+    <div class="data-flow-strip">
+        <div class="flow-breadcrumb">
+            <button type="button"
+                class="flow-step"
+                on:click={() => selectLayer(0)}
+                title="Jump to the embedding (input of layer 0)">Embedding</button>
+            <svg class="flow-arrow" viewBox="0 0 8 8"><path d="M2 1 L6 4 L2 7"/></svg>
+            {#if layerIdx > 0}
+                <button type="button"
+                    class="flow-step"
+                    on:click={() => selectLayer(layerIdx - 1)}
+                    title="hidden_out of this layer feeds hidden_in of layer {layerIdx}">Layer {layerIdx - 1}</button>
+                <svg class="flow-arrow" viewBox="0 0 8 8"><path d="M2 1 L6 4 L2 7"/></svg>
+            {/if}
+            <span class="flow-step active" role="note" title="Currently inspected layer">Layer {layerIdx}</span>
+            <svg class="flow-arrow" viewBox="0 0 8 8"><path d="M2 1 L6 4 L2 7"/></svg>
+            {#if layerIdx < $maxLayer}
+                <button type="button"
+                    class="flow-step"
+                    on:click={() => selectLayer(layerIdx + 1)}
+                    title="hidden_out of layer {layerIdx} feeds hidden_in of this layer">Layer {layerIdx + 1}</button>
+                <svg class="flow-arrow" viewBox="0 0 8 8"><path d="M2 1 L6 4 L2 7"/></svg>
+            {/if}
+            <button type="button"
+                class="flow-step"
+                on:click={() => selectLayer($maxLayer)}
+                title="Final RMSNorm consumes hidden_out of layer {$maxLayer}">Final Norm</button>
+            <svg class="flow-arrow" viewBox="0 0 8 8"><path d="M2 1 L6 4 L2 7"/></svg>
+            <button type="button"
+                class="flow-step"
+                on:click={scrollToDistribution}
+                title="lm_head + softmax produce panel 7's next-token distribution">lm_head → Distribution</button>
+        </div>
+    </div>
+
     <!-- Main stage: horizontally scrollable panels -->
     <main class="stage-scroll" id="main-stage">
         <div class="stage-inner">
@@ -181,11 +255,22 @@ function onLayerRight() {
                 <div class="panel-title">6. SwiGLU + W<sub>out</sub></div>
                 <GateOutputPanel />
             </section>
+
+            <div class="stage-arrow">&#8594;</div>
+
+            <!-- Panel 7: Output Distribution (always visible) -->
+            <section class="stage-panel" id="panel-distribution" data-panel="output-distribution">
+                <div class="panel-title">7. Output Distribution</div>
+                <OutputDistributionPanel />
+            </section>
         </div>
     </main>
 
     <!-- Guided tour overlay -->
     <GuidedTour />
+
+    <!-- Model diagram modal overlay -->
+    <ModelDiagramModal />
 </div>
 
 <style>
@@ -298,6 +383,7 @@ function onLayerRight() {
     border-color: var(--accent-blue);
 }
 
+/* Loading dot */
 .loading-dot {
     font-family: var(--font-mono);
     color: var(--accent-orange);
@@ -364,5 +450,80 @@ function onLayerRight() {
     color: var(--border);
     font-size: 1.4rem;
     flex-shrink: 0;
+}
+
+/* Layer slider */
+.layer-slider-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    max-width: 300px;
+}
+
+.layer-slider {
+    flex: 1;
+    cursor: pointer;
+}
+
+.layer-value {
+    min-width: 52px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text);
+}
+
+/* Data-flow strip */
+.data-flow-strip {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    margin: 0.5rem 0;
+}
+
+.flow-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.flow-step {
+    font: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.flow-step.active {
+    background: var(--accent-teal);
+    color: #000;
+    border-color: var(--accent-teal);
+}
+
+.flow-step:hover:not(.active) {
+    background: var(--bg-card);
+}
+
+.flow-arrow {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+}
+
+.flow-arrow path {
+    fill: none;
+    stroke: var(--text-dim);
+    stroke-width: 1.4;
 }
 </style>

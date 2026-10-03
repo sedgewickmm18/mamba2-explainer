@@ -1,0 +1,21 @@
+node_modules
+
+# Build output (deployed to GitHub Pages via `npm run deploy`, not committed)
+/build
+/dist
+
+# SvelteKit
+/.svelte-kit
+/package
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Vite temp files
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# OS
+.DS_Store

@@ -12,12 +12,12 @@ const config = {
             precompress: false,
             strict: true
         }),
-        // Set base path for GitHub Pages deployment.
-        // Change this to your repo path when deploying.
-        // e.g. paths: { base: '/llama.cpp/mamba2-explainer' }
+        // Base path for GitHub Pages project sites: the site is served from
+        // https://<user>.github.io/mamba2-explainer/, so production builds must
+        // prefix all assets and routes with the repo name. `vite dev` serves at
+        // the root, so it gets an empty base.
         paths: {
-            // base: process.env.BASE_PATH || ''
-            base: process.env.NODE_ENV === 'production' ? '/mamba2-explainer' : ''
+            base: process.argv.includes('dev') ? '' : '/mamba2-explainer'
         }
     }
 };

@@ -7,6 +7,7 @@
  */
 import '../app.css';
 import { onMount } from 'svelte';
+import { base } from '$app/paths';
 import * as d3 from 'd3';
 import {
     appState,
@@ -30,7 +31,7 @@ import OutputDistributionPanel from '$lib/components/OutputDistributionPanel.sve
 import GuidedTour from '$lib/components/GuidedTour.svelte';
 
 onMount(() => {
-    initLoader();
+    initLoader(base);
 
     // Fan-out arrows depend on panel geometry; redraw whenever any of the
     // involved boxes (or the stage itself) resizes.

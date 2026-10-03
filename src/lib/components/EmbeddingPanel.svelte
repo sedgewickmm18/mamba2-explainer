@@ -74,7 +74,7 @@ function render() {
     g.append('line')
         .attr('x1', PAD.left).attr('x2', W - PAD.right)
         .attr('y1', H - PAD.bottom).attr('y2', H - PAD.bottom)
-        .attr('stroke', '#2e3347').attr('stroke-width', 1);
+        .attr('stroke', '#c9cfda').attr('stroke-width', 1);
 
     // Bars
     tokens.forEach((tok, i) => {
@@ -89,7 +89,7 @@ function render() {
             .attr('y', yTop)
             .attr('width', barW)
             .attr('height', barH)
-            .attr('fill', i === stepIdx ? '#2dd4bf' : (has ? colorScale(mag) : '#2e3347'))
+            .attr('fill', i === stepIdx ? '#14b8a6' : (has ? colorScale(mag) : '#cbd5e1'))
             .attr('rx', 2)
             .attr('opacity', i <= stepIdx ? 1 : 0.3)
             .style('cursor', 'pointer');
@@ -111,7 +111,7 @@ function render() {
                 .attr('x', x + barW / 2)
                 .attr('y', H - PAD.bottom + 14)
                 .attr('text-anchor', 'middle')
-                .attr('fill', i === stepIdx ? '#2dd4bf' : '#8b90a8')
+                .attr('fill', i === stepIdx ? '#0d9488' : '#64748b')
                 .attr('font-size', Math.min(10, barW - 2))
                 .attr('font-family', 'monospace')
                 .text(tok.length > 5 ? tok.slice(0, 5) : tok);
@@ -124,7 +124,7 @@ function render() {
         .attr('x', -(H / 2))
         .attr('y', 11)
         .attr('text-anchor', 'middle')
-        .attr('fill', '#8b90a8')
+        .attr('fill', '#64748b')
         .attr('font-size', 9)
         .text('|embedding| (real)');
 }
@@ -161,7 +161,7 @@ afterUpdate(render);
     color: var(--text);
     z-index: 50;
     white-space: nowrap;
-    box-shadow: 0 4px 16px #0006;
+    box-shadow: 0 4px 16px rgba(30, 41, 59, 0.15);
 }
 .tt-token { font-family: var(--font-mono); color: var(--accent-teal); margin-bottom: 2px; }
 .tt-mag   { color: var(--text-dim); }

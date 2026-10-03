@@ -98,10 +98,10 @@ function render() {
 
     // --- Row 1: z, gate, y_ssm, y_gated ---
     const cols = [
-        { data: vd.z,      color: '#a78bfa', label: 'z (gate in)' },
-        { data: vd.gate,   color: '#f9a8d4', label: 'sigmoid(z)' },
-        { data: vd.ySsm,   color: '#2dd4bf', label: 'y_ssm' },
-        { data: vd.yGated, color: '#4ade80', label: 'y_gated' },
+        { data: vd.z,      color: '#7c3aed', label: 'z (gate in)' },
+        { data: vd.gate,   color: '#db2777', label: 'sigmoid(z)' },
+        { data: vd.ySsm,   color: '#0d9488', label: 'y_ssm' },
+        { data: vd.yGated, color: '#16a34a', label: 'y_gated' },
     ];
 
     let x = 16;
@@ -113,40 +113,40 @@ function render() {
     // Arrows
     // sigmoid: z -> gate
     svg.append('text').attr('x', 16 + vecW + 6).attr('y', top + vecH / 2 + 5)
-        .attr('fill', '#8b90a8').attr('font-size', 10).text('->');
+        .attr('fill', '#64748b').attr('font-size', 10).text('->');
     // element-wise multiply
     svg.append('text').attr('x', 16 + 2 * (vecW + spacing) - spacing + vecW + 2).attr('y', top + vecH / 2 + 5)
-        .attr('fill', '#8b90a8').attr('font-size', 10).text('x');
+        .attr('fill', '#64748b').attr('font-size', 10).text('x');
     // result arrow
     svg.append('text').attr('x', 16 + 3 * (vecW + spacing) - spacing + vecW + 2).attr('y', top + vecH / 2 + 5)
-        .attr('fill', '#8b90a8').attr('font-size', 10).text('=');
+        .attr('fill', '#64748b').attr('font-size', 10).text('=');
 
     // --- Row 2: annotations ---
     const midY = top + vecH + 22;
     svg.append('text')
         .attr('x', W / 2).attr('y', midY)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
+        .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', 9)
         .text('y = sigmoid(z) * y_ssm  (SwiGLU gate)');
 
     // Skip connection note
     svg.append('text')
         .attr('x', W / 2).attr('y', midY + 14)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
+        .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', 9)
         .text('y += D * x  (skip, D per head)');
 
     // Output vector
     const outTop = midY + 28;
-    renderVec(svg, vd.yOut, (W - vecW) / 2, outTop, vecW, 60, '#60a5fa', 'y_out');
+    renderVec(svg, vd.yOut, (W - vecW) / 2, outTop, vecW, 60, '#2563eb', 'y_out');
 
     svg.append('text')
         .attr('x', W / 2).attr('y', outTop + 75)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
+        .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', 9)
         .text('-> GroupRMSNorm -> W_out -> + residual');
 
     // Honest derivation note: z/y_ssm slices are not exported directly
     svg.append('text')
         .attr('x', W / 2).attr('y', H - 4)
-        .attr('text-anchor', 'middle').attr('fill', '#5b6070').attr('font-size', 7.5)
+        .attr('text-anchor', 'middle').attr('fill', '#94a3b8').attr('font-size', 7.5)
         .text('derived from real hidden_in / hidden_out of this step (proxies for z and y_ssm)');
 
     // Residual arrow
@@ -154,10 +154,10 @@ function render() {
     svg.append('line')
         .attr('x1', 16).attr('y1', top + vecH / 2)
         .attr('x2', 16).attr('y2', residY)
-        .attr('stroke', '#60a5fa').attr('stroke-width', 1).attr('stroke-dasharray', '3,2');
+        .attr('stroke', '#3b82f6').attr('stroke-width', 1).attr('stroke-dasharray', '3,2');
     svg.append('text')
         .attr('x', 28).attr('y', residY + 4)
-        .attr('fill', '#60a5fa').attr('font-size', 8)
+        .attr('fill', '#2563eb').attr('font-size', 8)
         .text('x_residual (bypass)');
 }
 

@@ -6,22 +6,31 @@
  *   z   (purple)  -- gate
  *   xBC (teal)    -- conv input
  *   dt  (orange)  -- time step
+ *
+ * Each segment ends in a small exit chevron with an invisible 1x1 anchor div
+ * placed below it. +page.svelte measures these anchors to route the stage
+ * fan-out arrows (z -> SwiGLU gate, xBC -> conv, dt -> scan) and redraws them
+ * whenever the 'fanout' event fires (anchors repositioned).
  */
-import { onMount, afterUpdate } from 'svelte';
+import { onMount, afterUpdate, createEventDispatcher } from 'svelte';
 import * as d3 from 'd3';
 import { appState, type ModelMeta } from '$lib/data/tensorLoader';
 
+const dispatch = createEventDispatcher();
+
 let svgEl: SVGSVGElement;
+let anchorEls: HTMLDivElement[] = [];
 
 const W = 300;
-const H = 200;
-const PAD = { top: 28, right: 16, bottom: 16, left: 48 };
+const H = 224;
+const PAD = { top: 28, right: 16, bottom: 34, left: 48 };
 
-// Color coding used throughout all panels
+// Color coding used throughout all panels:
+//   fill -- brackets / bars / arrow strokes, text -- labels on light bg
 const COLORS = {
-    z:   '#a78bfa',   // purple
-    xBC: '#2dd4bf',   // teal
-    dt:  '#fb923c',   // orange
+    z:   { fill: '#a78bfa', text: '#7c3aed' },   // purple
+    xBC: { fill: '#14b8a6', text: '#0d9488' },   // teal
+    dt:  { fill: '#fb923c', text: '#ea580c' },   // orange
 };
 
 $: projOut = $appState.tensors.get('proj_out') ?? null;
@@ -43,19 +52,38 @@ function computeSegments(proj: Float32Array | null, m: ModelMeta | null) {
         const xBCdim = dInner + 2 * nGroups * dState;
         if (dInner + xBCdim + nHeads === proj.length) {
             return [
-                { name: 'z', start: 0, end: dInner, color: COLORS.z },
-                { name: 'xBC', start: dInner, end: dInner + xBCdim, color: COLORS.xBC },
-                { name: 'dt', start: dInner + xBCdim, end: dInner + xBCdim + nHeads, color: COLORS.dt },
+                { name: 'z',   start: 0, end: dInner, color: COLORS.z.fill, textColor: COLORS.z.text },
+                { name: 'xBC', start: dInner, end: dInner + xBCdim, color: COLORS.xBC.fill, textColor: COLORS.xBC.text },
+                { name: 'dt',  start: dInner + xBCdim, end: dInner + xBCdim + nHeads, color: COLORS.dt.fill, textColor: COLORS.dt.text },
             ];
         }
     }
     // unknown dims: fall back to equal thirds
     const t = Math.floor(proj.length / 3);
     return [
-        { name: 'z', start: 0, end: t, color: COLORS.z },
-        { name: 'xBC', start: t, end: t * 2, color: COLORS.xBC },
-        { name: 'dt', start: t * 2, end: proj.length, color: COLORS.dt },
+        { name: 'z',   start: 0, end: t, color: COLORS.z.fill, textColor: COLORS.z.text },
+        { name: 'xBC', start: t, end: t * 2, color: COLORS.xBC.fill, textColor: COLORS.xBC.text },
+        { name: 'dt',  start: t * 2, end: proj.length, color: COLORS.dt.fill, textColor: COLORS.dt.text },
     ];
+}
+
+function hideAnchors() {
+    for (const el of anchorEls) if (el) el.style.display = 'none';
+    dispatch('fanout');
+}
+
+function positionAnchors(
+    xScale: (v: number) => number,
+    segs: { name: string; start: number; end: number }[]
+) {
+    segs.forEach((seg, i) => {
+        const el = anchorEls[i];
+        if (!el) return;
+        el.style.display = 'block';
+        el.style.left = `${(xScale(seg.start) + xScale(seg.end)) / 2}px`;
+        el.style.top = `${H - 4}px`;
+    });
+    dispatch('fanout');
 }
 
 function render() {
@@ -67,8 +95,9 @@ function render() {
         svg.append('text')
             .attr('x', W / 2).attr('y', H / 2)
             .attr('text-anchor', 'middle')
-            .attr('fill', '#8b90a8').attr('font-size', 12)
+            .attr('fill', '#64748b').attr('font-size', 12)
             .text('No projection data');
+        hideAnchors();
         return;
     }
 
@@ -95,7 +124,7 @@ function render() {
         const mean = sum / (end - start);
         const mid = Math.floor((start + end) / 2);
         const seg = segments.find((s) => mid >= s.start && mid < s.end);
-        const col = seg ? cScale(mean) : '#374151';
+        const col = seg ? cScale(mean) : '#d1d5db';
         g.append('rect')
             .attr('x', xScale(start))
             .attr('y', PAD.top)
@@ -107,6 +136,7 @@ function render() {
     }
 
     // Segment border lines + labels
+    const chevronY = PAD.top + plotH + 22;
     for (const seg of segments) {
         const x = xScale(seg.start);
         const x2 = xScale(seg.end);
@@ -128,16 +158,30 @@ function render() {
         g.append('text')
             .attr('x', midX).attr('y', PAD.top + plotH + 14)
             .attr('text-anchor', 'middle')
-            .attr('fill', seg.color).attr('font-size', 9)
+            .attr('fill', seg.textColor).attr('font-size', 9)
             .text(`${seg.end - seg.start}d`);
+
+        // Exit chevron: marks where this component leaves the panel.
+        // The stage fan-out overlay picks the arrow up right below it.
+        g.append('line')
+            .attr('x1', midX).attr('x2', midX)
+            .attr('y1', chevronY).attr('y2', chevronY + 7)
+            .attr('stroke', seg.color).attr('stroke-width', 2);
+        g.append('path')
+            .attr('d', `M ${midX - 3.5} ${chevronY + 4} L ${midX} ${chevronY + 8} L ${midX + 3.5} ${chevronY + 4}`)
+            .attr('fill', 'none')
+            .attr('stroke', seg.color).attr('stroke-width', 2)
+            .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
     }
 
     // Left axis label
     svg.append('text')
         .attr('transform', 'rotate(-90)')
         .attr('x', -(PAD.top + plotH / 2)).attr('y', 13)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
+        .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', 9)
         .text('value');
+
+    positionAnchors(xScale, segments);
 }
 
 onMount(render);
@@ -145,21 +189,34 @@ afterUpdate(render);
 </script>
 
 <div class="proj-wrap">
-    <svg bind:this={svgEl} width={W} height={H} />
     <div class="legend">
-        <span style="color:#a78bfa">■ z (gate)</span>
-        <span style="color:#2dd4bf">■ xBC (conv input)</span>
-        <span style="color:#fb923c">■ dt (time step)</span>
+        <span style="color:{COLORS.z.text}">■ z (gate)</span>
+        <span style="color:{COLORS.xBC.text}">■ xBC (conv input)</span>
+        <span style="color:{COLORS.dt.text}">■ dt (time step)</span>
+    </div>
+    <div class="proj-chart">
+        <svg bind:this={svgEl} width={W} height={H} />
+        {#each segments ?? [] as seg, i}
+            <div class="seg-anchor" bind:this={anchorEls[i]} data-seg={seg.name}></div>
+        {/each}
     </div>
 </div>
 
 <style>
 .proj-wrap { display: inline-block; }
+.proj-chart { position: relative; }
 .legend {
     display: flex;
     gap: 0.75rem;
     font-size: 0.72rem;
-    margin-top: 4px;
+    margin-bottom: 4px;
     color: var(--text-dim);
+}
+/* Invisible measurement point for the stage fan-out arrows */
+.seg-anchor {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
 }
 </style>

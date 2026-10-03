@@ -213,7 +213,7 @@ export { open };
 .tour-backdrop {
     position: fixed;
     inset: 0;
-    background: #0008;
+    background: rgba(15, 23, 42, 0.45);
     z-index: 200;
     display: flex;
     align-items: flex-end;
@@ -228,7 +228,7 @@ export { open };
     padding: 1.5rem;
     max-width: 480px;
     width: calc(100% - 2rem);
-    box-shadow: 0 8px 40px #0009;
+    box-shadow: 0 8px 40px rgba(30, 41, 59, 0.3);
 }
 
 .tour-header {
@@ -300,7 +300,7 @@ export { open };
 }
 .tour-btn.primary {
     background: var(--accent-teal);
-    color: #000;
+    color: #fff;
     border-color: var(--accent-teal);
 }
 .tour-btn.secondary {
@@ -320,13 +320,13 @@ export { open };
     bottom: 1.5rem;
     right: 1.5rem;
     background: var(--accent-teal);
-    color: #000;
+    color: #fff;
     border: none;
     border-radius: 20px;
     padding: 8px 18px;
     font-size: 0.85rem;
     font-weight: 700;
-    box-shadow: 0 4px 16px #0005;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.25);
     z-index: 150;
     transition: transform var(--transition);
 }
@@ -334,13 +334,13 @@ export { open };
 
 /* Panel highlight animation (added/removed programmatically) */
 :global(.tour-highlight) {
-    outline: 2px solid #2dd4bf !important;
+    outline: 2px solid #0d9488 !important;
     outline-offset: 4px;
     animation: tour-pulse 1.4s ease-out forwards;
 }
 @keyframes tour-pulse {
-    0%   { outline-color: #2dd4bf; }
-    60%  { outline-color: #2dd4bf88; }
+    0%   { outline-color: #0d9488; }
+    60%  { outline-color: #0d948888; }
     100% { outline-color: transparent; }
 }
 </style>

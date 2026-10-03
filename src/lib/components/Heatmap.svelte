@@ -50,7 +50,7 @@ function render() {
             .attr('x', width / 2)
             .attr('y', 14)
             .attr('text-anchor', 'middle')
-            .attr('fill', '#8b90a8')
+            .attr('fill', '#64748b')
             .attr('font-size', 11)
             .text(label);
     }
@@ -75,7 +75,7 @@ function render() {
                     .attr('x', x + cellW / 2)
                     .attr('y', y + cellH / 2 + 4)
                     .attr('text-anchor', 'middle')
-                    .attr('fill', '#fff')
+                    .attr('fill', '#111827')
                     .attr('font-size', 9)
                     .attr('pointer-events', 'none')
                     .text(val.toFixed(2));

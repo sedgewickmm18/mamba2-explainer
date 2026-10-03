@@ -2,10 +2,12 @@
 /**
  * +page.svelte - Top-level page layout.
  * Top bar: prompt selector, layer selector, token step prev/next.
- * Main canvas: horizontally scrollable SVG stage with all panels.
+ * Main canvas: horizontally scrollable SVG stage with all panels,
+ * plus the W_in projection fan-out overlay (z/xBC/dt routing arrows).
  */
 import '../app.css';
 import { onMount } from 'svelte';
+import * as d3 from 'd3';
 import {
     appState,
     maxStep,
@@ -26,11 +28,26 @@ import ScanPanel from '$lib/components/ScanPanel.svelte';
 import GateOutputPanel from '$lib/components/GateOutputPanel.svelte';
 import OutputDistributionPanel from '$lib/components/OutputDistributionPanel.svelte';
 import GuidedTour from '$lib/components/GuidedTour.svelte';
-import ModelDiagramModal from '$lib/components/ModelDiagramModal.svelte';
-import { openModelDiagram } from '$lib/data/modelDiagram';
 
 onMount(() => {
     initLoader();
+
+    // Fan-out arrows depend on panel geometry; redraw whenever any of the
+    // involved boxes (or the stage itself) resizes.
+    const ro = new ResizeObserver(scheduleFanDraw);
+    for (const id of ['panel-projection', 'panel-conv', 'panel-scan', 'panel-gate']) {
+        const el = document.getElementById(id);
+        if (el) ro.observe(el);
+    }
+    if (stageInner) ro.observe(stageInner);
+    window.addEventListener('resize', scheduleFanDraw);
+    scheduleFanDraw();
+
+    return () => {
+        ro.disconnect();
+        window.removeEventListener('resize', scheduleFanDraw);
+        cancelAnimationFrame(fanRaf);
+    };
 });
 
 $: manifest  = $appState.manifest;
@@ -46,8 +63,14 @@ $: nLayers   = meta?.n_layers ?? 24;
 
 // Slider label follows the store; dragging updates the label only, and the
 // per-layer npz fetch happens on release (change) to avoid fetch storms.
+// Sync on store moves only: re-running when sliderLayer itself changes would
+// snap the thumb back to the committed layer mid-drag.
 let sliderLayer = 0;
-$: if (layerIdx !== sliderLayer) sliderLayer = layerIdx;
+let syncedLayer = -1;
+$: if (layerIdx !== syncedLayer) {
+    syncedLayer = layerIdx;
+    sliderLayer = layerIdx;
+}
 
 function onPromptChange(e: Event) {
     const idx = parseInt((e.target as HTMLSelectElement).value, 10);
@@ -71,19 +94,124 @@ function scrollToDistribution() {
     const el = document.getElementById('panel-distribution');
     if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
 }
+
+// ---------------------------------------------------------------------
+// W_in projection fan-out: the projected zxBCdt vector splits into three
+// components that re-enter the stage at different panels. Arrows are routed
+// through lanes below the panel row, one lane per component, colored like
+// the segments in ProjectionPanel (source anchors live in that panel).
+// ---------------------------------------------------------------------
+let stageInner: HTMLDivElement;
+let fanSvg: SVGSVGElement | null = null;
+let fanRaf = 0;
+
+const FAN_ROUTES = [
+    { seg: 'xBC', panel: 'panel-conv',  label: 'xBC → conv1d (local mixing)', stroke: '#14b8a6', text: '#0d9488' },
+    { seg: 'dt',  panel: 'panel-scan',  label: 'dt → scan (recurrence rate)', stroke: '#fb923c', text: '#ea580c' },
+    { seg: 'z',   panel: 'panel-gate',  label: 'z → SwiGLU gate',             stroke: '#a78bfa', text: '#7c3aed' },
+];
+const FAN_LANE_BASE = 34;  // px below the panel row where the shallowest lane runs
+const FAN_LANE_GAP  = 22;  // vertical distance between lanes (xBC nearest, z deepest)
+const FAN_CORNER    = 12;  // corner radius of the routed paths
+
+/** Coalesce fan-out redraws into one per animation frame. */
+function scheduleFanDraw() {
+    cancelAnimationFrame(fanRaf);
+    fanRaf = requestAnimationFrame(drawFanout);
+}
+
+function drawFanout() {
+    fanRaf = 0;
+    if (!fanSvg || !stageInner) return;
+    const stageRect = stageInner.getBoundingClientRect();
+    if (stageRect.width === 0) return;
+
+    const svg = d3.select(fanSvg);
+    svg.selectAll('*').remove();
+
+    const W = stageInner.offsetWidth;
+    const H = stageInner.offsetHeight + FAN_LANE_BASE + FAN_LANE_GAP * (FAN_ROUTES.length - 1) + 14;
+    svg.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+
+    const defs = svg.append('defs');
+    const rel = (r: DOMRect) => ({
+        x: r.left - stageRect.left,
+        y: r.top - stageRect.top,
+        right: r.right - stageRect.left,
+        bottom: r.bottom - stageRect.top,
+    });
+
+    for (let i = 0; i < FAN_ROUTES.length; i++) {
+        const route = FAN_ROUTES[i];
+        // Source: the segment exit anchor inside the projection panel
+        const anchor = document.querySelector<HTMLElement>(
+            `#panel-projection .seg-anchor[data-seg="${route.seg}"]`
+        );
+        // Target: the panel that consumes this component
+        const target = document.getElementById(route.panel);
+        if (!anchor || !target) continue;
+        const a = anchor.getBoundingClientRect();
+        const t = target.getBoundingClientRect();
+        if (a.width === 0 || t.width === 0) continue; // anchor hidden (no data yet)
+
+        const sx = rel(a).x;
+        const sy = rel(a).bottom;
+        const tx = rel(t).x + t.width / 2;
+        const ty = rel(t).bottom - 2; // arrowhead tip touches the panel border
+        const laneY = stageInner.offsetHeight + FAN_LANE_BASE + i * FAN_LANE_GAP;
+        if (ty >= laneY - FAN_CORNER) continue; // target reaches into the lane area
+
+        const markerId = `fan-arrow-${route.seg}`;
+        defs.append('marker')
+            .attr('id', markerId)
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 8).attr('refY', 0)
+            .attr('markerWidth', 7).attr('markerHeight', 7)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', route.stroke);
+
+        const r = FAN_CORNER;
+        const d =
+            `M ${sx} ${sy} ` +
+            `V ${laneY - r} Q ${sx} ${laneY} ${sx + r} ${laneY} ` +
+            `H ${tx - r} Q ${tx} ${laneY} ${tx} ${laneY - r} ` +
+            `V ${ty}`;
+        svg.append('path')
+            .attr('d', d)
+            .attr('fill', 'none')
+            .attr('stroke', route.stroke)
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.9)
+            .attr('marker-end', `url(#${markerId})`);
+
+        // Source port where the arrow leaves the segment chevron
+        svg.append('circle')
+            .attr('cx', sx).attr('cy', sy).attr('r', 3)
+            .attr('fill', route.stroke);
+
+        // Label on the horizontal run, with a background-color halo so it
+        // stays readable where lanes run close together
+        svg.append('text')
+            .attr('x', (sx + tx) / 2)
+            .attr('y', laneY - 6)
+            .attr('text-anchor', 'middle')
+            .attr('fill', route.text)
+            .attr('font-size', 10)
+            .attr('font-weight', 600)
+            .attr('paint-order', 'stroke')
+            .style('stroke', 'var(--bg)')
+            .style('stroke-width', 3)
+            .text(route.label);
+    }
+}
 </script>
 
 <div class="app-root">
     <!-- Top bar -->
     <header class="topbar">
         <span class="topbar-title">Mamba2 Explainer</span>
-
-        <!-- Model diagram link -->
-        <div class="topbar-group">
-            <button class="topbar-select" on:click={openModelDiagram} aria-label="Open model diagram">
-                📊 Model diagram
-            </button>
-        </div>
 
         <!-- Prompt selector -->
         <label class="topbar-group" for="prompt-select">
@@ -209,7 +337,7 @@ function scrollToDistribution() {
 
     <!-- Main stage: horizontally scrollable panels -->
     <main class="stage-scroll" id="main-stage">
-        <div class="stage-inner">
+        <div class="stage-inner" bind:this={stageInner}>
             <!-- Panel 1: Input embedding -->
             <section class="stage-panel" id="panel-embedding" data-panel="embedding">
                 <div class="panel-title">1. Input Embedding</div>
@@ -221,7 +349,7 @@ function scrollToDistribution() {
             <!-- Panel 2: W_in projection -->
             <section class="stage-panel" id="panel-projection" data-panel="projection">
                 <div class="panel-title">2. W<sub>in</sub> Projection</div>
-                <ProjectionPanel />
+                <ProjectionPanel on:fanout={scheduleFanDraw} />
             </section>
 
             <div class="stage-arrow">&#8594;</div>
@@ -263,14 +391,14 @@ function scrollToDistribution() {
                 <div class="panel-title">7. Output Distribution</div>
                 <OutputDistributionPanel />
             </section>
+
+            <!-- W_in projection fan-out: z / xBC / dt routing arrows -->
+            <svg class="fanout-overlay" bind:this={fanSvg} aria-hidden="true"></svg>
         </div>
     </main>
 
     <!-- Guided tour overlay -->
     <GuidedTour />
-
-    <!-- Model diagram modal overlay -->
-    <ModelDiagramModal />
 </div>
 
 <style>
@@ -375,7 +503,7 @@ function scrollToDistribution() {
 }
 .token-chip.active {
     background: var(--accent-teal);
-    color: #000;
+    color: #fff;
     border-color: var(--accent-teal);
     font-weight: 700;
 }
@@ -394,16 +522,16 @@ function scrollToDistribution() {
 
 /* Banners */
 .error-banner {
-    background: #3b1414;
-    border: 1px solid #7f2020;
-    color: #fca5a5;
+    background: #fef2f2;
+    border-bottom: 1px solid #fca5a5;
+    color: #b91c1c;
     padding: 0.75rem 1.5rem;
     font-size: 0.875rem;
 }
 .notice-banner {
-    background: #1e2d1e;
-    border: 1px solid #3a5f3a;
-    color: #86efac;
+    background: #f0fdf4;
+    border-bottom: 1px solid #bbf7d0;
+    color: #15803d;
     padding: 0.75rem 1.5rem;
     font-size: 0.875rem;
 }
@@ -419,6 +547,17 @@ function scrollToDistribution() {
     align-items: flex-start;
     gap: 0;
     min-width: max-content;
+    position: relative;
+}
+
+/* W_in projection fan-out arrows (drawn by drawFanout) */
+.fanout-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    z-index: 5;
+    overflow: visible;
 }
 
 .stage-panel {
@@ -447,7 +586,7 @@ function scrollToDistribution() {
 .stage-arrow {
     align-self: center;
     padding: 0 0.75rem;
-    color: var(--border);
+    color: var(--text-dim);
     font-size: 1.4rem;
     flex-shrink: 0;
 }
@@ -507,7 +646,7 @@ function scrollToDistribution() {
 
 .flow-step.active {
     background: var(--accent-teal);
-    color: #000;
+    color: #fff;
     border-color: var(--accent-teal);
 }
 

@@ -48,7 +48,7 @@ function render() {
         svg.append('text')
             .attr('x', W / 2).attr('y', H / 2)
             .attr('text-anchor', 'middle')
-            .attr('fill', '#8b90a8').attr('font-size', 11)
+            .attr('fill', '#64748b').attr('font-size', 11)
             .text('No output distribution data');
         return;
     }
@@ -63,13 +63,13 @@ function render() {
     // Header: step, token, entropy of the full softmax
     svg.append('text')
         .attr('x', PAD.left).attr('y', 16)
-        .attr('fill', '#e8eaf0').attr('font-size', 11).attr('font-weight', '700')
+        .attr('fill', '#22272e').attr('font-size', 11).attr('font-weight', '700')
         .text(`next token after '${stepInfo?.token ?? '?'}'`);
     if (entropy) {
         svg.append('text')
             .attr('x', W - PAD.right).attr('y', 16)
             .attr('text-anchor', 'end')
-            .attr('fill', '#fb923c').attr('font-size', 9).attr('font-family', 'monospace')
+            .attr('fill', '#ea580c').attr('font-size', 9).attr('font-family', 'monospace')
             .text(`entropy ${entropy[step].toFixed(2)}`);
     }
 
@@ -85,12 +85,12 @@ function render() {
         svg.append('rect') // track
             .attr('x', plotX).attr('y', y)
             .attr('width', plotW).attr('height', ROW_H - 4)
-            .attr('fill', '#1a1d27').attr('rx', 2);
+            .attr('fill', '#e8ebf0').attr('rx', 2);
 
         svg.append('rect') // bar
             .attr('x', plotX).attr('y', y)
             .attr('width', bw).attr('height', ROW_H - 4)
-            .attr('fill', isActual ? '#2dd4bf' : '#4a5568')
+            .attr('fill', isActual ? '#14b8a6' : '#94a3b8')
             .attr('rx', 2)
             .append('title')
             .text(`p = ${p.toExponential(3)}`);
@@ -99,7 +99,7 @@ function render() {
             svg.append('rect')
                 .attr('x', plotX - 1.5).attr('y', y - 1.5)
                 .attr('width', bw + 3).attr('height', ROW_H - 1)
-                .attr('fill', 'none').attr('stroke', '#2dd4bf').attr('stroke-width', 1.5)
+                .attr('fill', 'none').attr('stroke', '#14b8a6').attr('stroke-width', 1.5)
                 .attr('rx', 3);
         }
 
@@ -107,13 +107,13 @@ function render() {
         svg.append('text')
             .attr('x', plotX - 6).attr('y', y + ROW_H - 7)
             .attr('text-anchor', 'end')
-            .attr('fill', isActual ? '#2dd4bf' : '#8b90a8')
+            .attr('fill', isActual ? '#0d9488' : '#64748b')
             .attr('font-size', 9).attr('font-family', 'monospace')
             .text(label.length > 10 ? label.slice(0, 10) : label);
 
         svg.append('text')
             .attr('x', plotX + bw + 5).attr('y', y + ROW_H - 7)
-            .attr('fill', isActual ? '#2dd4bf' : '#8b90a8')
+            .attr('fill', isActual ? '#0d9488' : '#64748b')
             .attr('font-size', 8).attr('font-family', 'monospace')
             .text(p.toFixed(4));
     });
@@ -134,7 +134,7 @@ function render() {
         const y = PAD.top + N_BARS * ROW_H + 18;
         svg.append('text')
             .attr('x', PAD.left).attr('y', y)
-            .attr('fill', '#2dd4bf').attr('font-size', 9).attr('font-family', 'monospace')
+            .attr('fill', '#0d9488').attr('font-size', 9).attr('font-family', 'monospace')
             .text(msg.length > 58 ? msg.slice(0, 57) + '…' : msg);
         actualNote = msg;
     }
@@ -148,7 +148,7 @@ function render() {
     ] as [number, string][]) {
         svg.append('text')
             .attr('x', PAD.left).attr('y', capY + dy)
-            .attr('fill', dy === 0 ? '#8b90a8' : '#5b6070')
+            .attr('fill', dy === 0 ? '#64748b' : '#94a3b8')
             .attr('font-size', 8.5).attr('font-family', 'monospace')
             .text(txt);
     }
@@ -180,7 +180,7 @@ afterUpdate(render);
 .dim-overlay {
     position: absolute;
     inset: 40px 0 92px 0;
-    background: #0f121acc;
+    background: #f8fafccc;
     border-radius: 6px;
     display: flex;
     align-items: center;

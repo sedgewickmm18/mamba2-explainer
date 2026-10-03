@@ -111,7 +111,7 @@ async function renderPipeline(
             svg.append('text')
                 .attr('x', W_MAIN / 2).attr('y', H_MAIN / 2)
                 .attr('text-anchor', 'middle')
-                .attr('fill', '#8b90a8').attr('font-size', 11)
+                .attr('fill', '#64748b').attr('font-size', 11)
                 .text('awaiting ssm_state data ...');
         }
         return;
@@ -148,9 +148,9 @@ function renderMain(before: Float32Array | null, after: Float32Array, head: numb
     const g = svg.append('g');
 
     const panels = [
-        { label: 'S_{t-1}', data: sBefore, x: PAD.left, color: '#60a5fa' },
-        { label: 'update (dt*Bx)', data: update, x: PAD.left + panelW + 8, color: '#fb923c' },
-        { label: 'S_t (new)', data: sAfter, x: PAD.left + 2 * (panelW + 8), color: '#4ade80' },
+        { label: 'S_{t-1}', data: sBefore, x: PAD.left, color: '#2563eb' },
+        { label: 'update (dt*Bx)', data: update, x: PAD.left + panelW + 8, color: '#ea580c' },
+        { label: 'S_t (new)', data: sAfter, x: PAD.left + 2 * (panelW + 8), color: '#16a34a' },
     ];
 
     for (const p of panels) {
@@ -171,14 +171,14 @@ function renderMain(before: Float32Array | null, after: Float32Array, head: numb
         const y = PAD.top + plotH / 2;
         svg.append('text')
             .attr('x', x + 3).attr('y', y + 4)
-            .attr('fill', '#8b90a8').attr('font-size', 12)
+            .attr('fill', '#64748b').attr('font-size', 12)
             .text('+');
     }
 
     // Bottom: honest dimension annotation for the decimated view
     svg.append('text')
         .attr('x', PAD.left + plotW / 2).attr('y', H_MAIN - 6)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 8)
+        .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', 8)
         .text(`${ds} x ${hd} subsample of the full ${fullD} x ${fullH} s_l`);
 }
 
@@ -221,7 +221,7 @@ function renderDecay() {
 
     svg.append('text')
         .attr('x', 10).attr('y', 12)
-        .attr('fill', '#8b90a8').attr('font-size', 9)
+        .attr('fill', '#64748b').attr('font-size', 9)
         .text(decays
             ? 'exp(A*dt) per head -- real A and dt (darker = more forgetting)'
             : 'exp(A*dt) per head -- awaiting A (model_meta) and dt (proj_out) data');
@@ -234,8 +234,8 @@ function renderDecay() {
         g.append('rect')
             .attr('x', h * barW).attr('y', 0)
             .attr('width', barW - 0.5).attr('height', 28)
-            .attr('fill', decays ? cScale(v) : '#2e3347')
-            .attr('stroke', h === selectedHead ? '#fb923c' : 'none')
+                .attr('fill', decays ? cScale(v) : '#cbd5e1')
+                .attr('stroke', h === selectedHead ? '#ea580c' : 'none')
             .attr('stroke-width', 2)
             .style('cursor', 'pointer')
             .on('click', () => { selectedHead = h; })
@@ -247,7 +247,7 @@ function renderDecay() {
     g.append('text')
         .attr('x', selectedHead * barW + barW / 2)
         .attr('y', 40)
-        .attr('text-anchor', 'middle').attr('fill', '#fb923c').attr('font-size', 8)
+        .attr('text-anchor', 'middle').attr('fill', '#ea580c').attr('font-size', 8)
         .text(`head ${selectedHead}`);
 }
 
@@ -297,7 +297,10 @@ $: void renderPipeline(stepIdx, layerIdx, tensors.get('ssm_state') ?? null, sele
     <svg bind:this={svgDecay} width={W_DECAY} height={H_DECAY} />
 
     <div class="ssm-note">
-        s_l is {fullD * fullH * nHeads * 4} bytes (f32) and constant. Transformer KV grows +{dModel * 2 * 2} bytes/token/layer.
+        s_l is a {fullD} x {fullH} matrix (d_state x head_dim) per head. dt and A are one scalar per
+        head, so the layer keeps {nHeads} such matrices = {fullD} x {fullH} x {nHeads} =
+        {fullD * fullH * nHeads} floats ({fullD * fullH * nHeads * 4} bytes f32) -- constant.
+        Transformer KV grows +{dModel * 2 * 2} bytes/token/layer.
         Heatmaps show a {subW} x {subD} strided subsample; update = S_t - S_{'{t-1}'}.
     </div>
 </div>
@@ -318,8 +321,8 @@ $: void renderPipeline(stepIdx, layerIdx, tensors.get('ssm_state') ?? null, sele
     padding: 4px 10px;
     font-size: 0.78rem;
 }
-.counter.highlight { border-color: #60a5fa; }
-.counter.ratio { border-color: #4ade80; }
+.counter.highlight { border-color: #2563eb; }
+.counter.ratio { border-color: #16a34a; }
 .counter-label { color: var(--text-dim); display: block; font-size: 0.7rem; }
 .counter-val { color: var(--text); font-family: var(--font-mono); font-size: 0.9rem; }
 

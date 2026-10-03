@@ -17,12 +17,18 @@ embedding to the next-token distribution:
 | Panel | What you see |
 |---|---|
 | Input Embedding | Token sequence, real \|\|embedding\|\| per token |
-| W_in Projection | zxBCdt output, color-coded split: z (purple) / xBC (teal) / dt (orange) |
+| W_in Projection | zxBCdt output, color-coded split: z (purple) / xBC (teal) / dt (orange), with fan-out arrows routing each component to its consumer panel |
 | Conv History r_l | Sliding window buffer (d_conv-1=3 slots), constant size |
 | SSM State s_l | Real S_before / update / S_after heatmaps (subsampled s_l), real exp(A·dt) decay per head, KV cache comparison |
 | Scan / SSD | Decode recurrence with real dt slice vs prefill SSD path, causal decay mask L |
 | SwiGLU + W_out | Gate, skip connection D*x, grouped norm, residual add |
 | Output Distribution | Top-20 of the exported top-50 next-token candidates, actual next token ringed, entropy readout |
+
+The W_in projection fan-out is drawn as an overlay on the panel stage: three
+color-coded arrows leave the projection segments and re-enter the stage at the
+panel that consumes each component — xBC (teal) into the conv, dt (orange)
+into the scan (it governs the recurrence rate), z (purple) into the SwiGLU
+gate where it plays the role of the Value pathway in transformers.
 
 The data-flow tail of the model is explicit in the export and the UI:
 `hidden_out (layer 23) → final RMSNorm → lm_head → logits → softmax →
@@ -30,10 +36,12 @@ next-token distribution` — panel 7 is always visible and dims with a note
 while a non-final layer is selected, since the distribution is a property of
 the whole stack, not of one layer.
 
-The topbar has a free layer-navigation slider (0..23) plus prev/next arrows,
-and a "Model diagram" link opening a mermaid-rendered architecture overlay
-(authored from the `arch:llama.cpp:mamba2-ssm` FalkorDB graph, statically
-embedded — no runtime graph access).
+The topbar has a free layer-navigation slider (0..23) plus prev/next arrows.
+The full architecture flowchart (authored from the
+`arch:llama.cpp:mamba2-ssm` FalkorDB graph) is kept as mermaid source in
+[`docs/mamba2-arch-diagram.mmd`](docs/mamba2-arch-diagram.mmd) — the former
+in-app mermaid overlay was removed (the mermaid.js runtime stalled in some
+embedded webviews).
 
 Includes a 16-step guided tour (auto-opens on first visit).
 
@@ -103,21 +111,19 @@ tools/mamba2-explainer/
     routes/
       +page.svelte          -- top-level layout, topbar (layer slider), data-flow strip, panel stage
       +layout.ts            -- static prerender config
-    lib/
-      data/
-        tensorLoader.ts     -- manifest fetch, npz parser, Svelte store, output-distribution loader
-        modelDiagram.ts     -- MAMBA2_MERMAID flowchart + modal open store
-      components/
-        EmbeddingPanel.svelte
-        ProjectionPanel.svelte
-        ConvPanel.svelte
-        SSMStatePanel.svelte
-        ScanPanel.svelte
-        GateOutputPanel.svelte
-        OutputDistributionPanel.svelte
-        ModelDiagramModal.svelte
-        GuidedTour.svelte
-        Heatmap.svelte      -- shared reusable heatmap
+      lib/
+        data/
+          tensorLoader.ts     -- manifest fetch, npz parser, Svelte store, output-distribution loader
+        components/
+          EmbeddingPanel.svelte
+          ProjectionPanel.svelte
+          ConvPanel.svelte
+          SSMStatePanel.svelte
+          ScanPanel.svelte
+          GateOutputPanel.svelte
+          OutputDistributionPanel.svelte
+          GuidedTour.svelte
+          Heatmap.svelte      -- shared reusable heatmap
     app.html                -- HTML shell
     app.css                 -- global design tokens (CSS vars)
   static/

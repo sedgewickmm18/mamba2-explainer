@@ -1,16 +1,16 @@
 /* Global reset and typography */
 :root {
-    --bg: #0f1117;
-    --bg-panel: #1a1d27;
-    --bg-card: #20243a;
-    --border: #2e3347;
-    --text: #e8eaf0;
-    --text-dim: #8b90a8;
-    --accent-purple: #a78bfa;
-    --accent-teal: #2dd4bf;
-    --accent-orange: #fb923c;
-    --accent-blue: #60a5fa;
-    --accent-green: #4ade80;
+    --bg: #f6f7f9;
+    --bg-panel: #ffffff;
+    --bg-card: #eef1f5;
+    --border: #d9dee7;
+    --text: #22272e;
+    --text-dim: #64748b;
+    --accent-purple: #7c3aed;
+    --accent-teal: #0d9488;
+    --accent-orange: #ea580c;
+    --accent-blue: #2563eb;
+    --accent-green: #16a34a;
     --font-mono: 'Fira Code', 'Cascadia Code', monospace;
     --font-sans: 'Inter', system-ui, sans-serif;
     --panel-pad: 1.5rem;
@@ -80,6 +80,6 @@ code, .mono {
 /* Heatmap color scale utility classes */
 .heat-high  { fill: #ef4444; }
 .heat-mid   { fill: #f97316; }
-.heat-zero  { fill: #374151; }
+.heat-zero  { fill: #d1d5db; }
 .heat-neg   { fill: #3b82f6; }
-.heat-lowneg { fill: #1e3a5f; }
+.heat-lowneg { fill: #bfdbfe; }

@@ -30,7 +30,7 @@ function render() {
         svg.append('text')
             .attr('x', W / 2).attr('y', H / 2)
             .attr('text-anchor', 'middle')
-            .attr('fill', '#8b90a8').attr('font-size', 12)
+            .attr('fill', '#64748b').attr('font-size', 12)
             .text('No conv state data');
         return;
     }
@@ -61,7 +61,7 @@ function render() {
     // Header labels
     svg.append('text')
         .attr('x', W / 2).attr('y', 16)
-        .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 10)
+        .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', 10)
         .text(`Conv history r_l  (${hist} slots x ${nRows} of ${channels} channels, d_conv=${dConv})`);
 
     // History columns
@@ -79,7 +79,7 @@ function render() {
         // Column label
         svg.append('text')
             .attr('x', x + cellW / 2).attr('y', PAD.top - 6)
-            .attr('text-anchor', 'middle').attr('fill', '#8b90a8').attr('font-size', 9)
+            .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', 9)
             .text(`t-${hist - c}`);
     }
 
@@ -88,7 +88,7 @@ function render() {
     g.append('line')
         .attr('x1', sepX).attr('x2', sepX)
         .attr('y1', PAD.top - 2).attr('y2', PAD.top + plotH)
-        .attr('stroke', '#2dd4bf').attr('stroke-width', 1.5).attr('stroke-dasharray', '3,3');
+        .attr('stroke', '#14b8a6').attr('stroke-width', 1.5).attr('stroke-dasharray', '3,3');
 
     const newX = sepX + 8;
     for (let r = 0; r < nRows; r++) {
@@ -97,18 +97,18 @@ function render() {
         g.append('rect')
             .attr('x', newX).attr('y', y + 1)
             .attr('width', cellW - 2).attr('height', cellH - 2)
-            .attr('fill', cScale(v)).attr('rx', 1).attr('stroke', '#2dd4bf').attr('stroke-width', 0.5)
+            .attr('fill', cScale(v)).attr('rx', 1).attr('stroke', '#14b8a6').attr('stroke-width', 0.5)
             .append('title').text(`new[ch ${rows[r]}] = ${v.toFixed(4)}`);
     }
     svg.append('text')
         .attr('x', newX + cellW / 2).attr('y', PAD.top - 6)
-        .attr('text-anchor', 'middle').attr('fill', '#2dd4bf').attr('font-size', 9)
+        .attr('text-anchor', 'middle').attr('fill', '#0d9488').attr('font-size', 9)
         .text('t (new)');
 
     // Bottom: state size badge
     svg.append('text')
         .attr('x', W / 2).attr('y', H - 6)
-        .attr('text-anchor', 'middle').attr('fill', '#4ade80').attr('font-size', 9)
+        .attr('text-anchor', 'middle').attr('fill', '#16a34a').attr('font-size', 9)
         .text(`State = ${hist} x channels -- constant, does not grow with context`);
 }
 

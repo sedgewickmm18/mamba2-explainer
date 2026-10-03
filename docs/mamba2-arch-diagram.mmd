@@ -1,32 +1,24 @@
-/**
- * modelDiagram.ts
- * Mermaid flowchart definition for the Mamba2 architecture.
- *
- * Authored from the FalkorDB graph `arch:llama.cpp:mamba2-ssm`
- * (Op / Tensor / State / Weight / WriteBack nodes). The topology mirrors the
- * graph one-to-one:
- *   - input -> RMSNorm -> W_in projection -> split z/xBC/dt
- *   - dt path adds dt_bias before the scan
- *   - xBC path concatenates the r_l conv history -> depthwise conv1d -> SiLU
- *     -> split x/B/C
- *   - SSM scan reads s_l and the A decay, writes s_l back, emits y
- *   - skip y + D*x, SwiGLU gate with z, grouped RMS norm, W_out
- *   - residual add with the layer input, layer output
- *   - states r_l / s_l / A / D are side nodes with read edges,
- *     write-backs are dashed, weights are dotted side nodes
- *
- * Static embed by design: the app never talks to FalkorDB at runtime.
- */
-import { writable } from 'svelte/store';
-
-/** Modal open/close state, shared between the topbar link and the modal. */
-export const modelDiagramOpen = writable(false);
-
-export function openModelDiagram() {
-    modelDiagramOpen.set(true);
-}
-
-export const MAMBA2_MERMAID = `
+%% Mamba2 architecture flowchart.
+%%
+%% Authored from the FalkorDB graph `arch:llama.cpp:mamba2-ssm`
+%% (Op / Tensor / State / Weight / WriteBack nodes). The topology mirrors the
+%% graph one-to-one:
+%%   - input -> RMSNorm -> W_in projection -> split z/xBC/dt
+%%   - dt path adds dt_bias before the scan
+%%   - xBC path concatenates the r_l conv history -> depthwise conv1d -> SiLU
+%%     -> split x/B/C
+%%   - SSM scan reads s_l and the A decay, writes s_l back, emits y
+%%   - skip y + D*x, SwiGLU gate with z, grouped RMS norm, W_out
+%%   - residual add with the layer input, layer output
+%%   - states r_l / s_l / A / D are side nodes with read edges,
+%%     write-backs are dashed, weights are dotted side nodes
+%%
+%% NOTE: the mermaid runtime integration in the web UI was removed (it stalled
+%% in some embedded webviews). This file keeps the diagram source so it can be
+%% rendered with any standalone mermaid renderer, e.g.:
+%%   npx -y @mermaid-js/mermaid-cli -i docs/mamba2-arch-diagram.mmd -o out.svg
+%%
+%% The classDefs below target the dark theme of the old overlay.
 flowchart TD
     %% ---- main data path -------------------------------------------------
     XIN["x  input embedding"]:::tensor
@@ -147,4 +139,3 @@ flowchart TD
     classDef state fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
     classDef weight fill:#1a1d27,stroke:#a78bfa,color:#c4b5fd,stroke-width:1px,stroke-dasharray:3 3;
     classDef writeback fill:#4c1d95,stroke:#a78bfa,color:#ede9fe,stroke-width:1px,stroke-dasharray:6 3;
-`;

@@ -8,7 +8,7 @@ const config = {
         adapter: adapter({
             pages: 'build',
             assets: 'build',
-            fallback: '404.html' // Highly recommended for routing on GitHub Pages
+            fallback: '404.html', // Highly recommended for routing on GitHub Pages
             precompress: false,
             strict: true
         }),

@@ -6,9 +6,9 @@ const config = {
     preprocess: vitePreprocess(),
     kit: {
         adapter: adapter({
-            pages: 'dist',
-            assets: 'dist',
-            fallback: undefined,
+            pages: 'build',
+            assets: 'build',
+            fallback: '404.html' // Highly recommended for routing on GitHub Pages
             precompress: false,
             strict: true
         }),
@@ -16,7 +16,8 @@ const config = {
         // Change this to your repo path when deploying.
         // e.g. paths: { base: '/llama.cpp/mamba2-explainer' }
         paths: {
-            base: process.env.BASE_PATH || ''
+            // base: process.env.BASE_PATH || ''
+            base: process.env.NODE_ENV === 'production' ? '/mamba2-explainer' : ''
         }
     }
 };
